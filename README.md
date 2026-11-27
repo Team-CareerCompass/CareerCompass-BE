@@ -8,11 +8,54 @@
 
 > 2026-03-06 제안서(`… – CamBridge`)는 **폐기된 주제의 문서**다. 팀 역할은 그 뒤 다시 나뉘었으니 그 문서를 근거로 삼지 않는다.
 
-## 현재 상태
+## 현재 상태 (2026-11-16)
 
-**코드 없음.** 이 저장소는 착수 시점의 빈 저장소이고, 해야 할 일은 전부 이슈로 등록해 뒀다. 총 **50건**, 마일스톤 10개(M0~M9)로 나뉜다.
+**M0~M9 구현 완료** — 이슈 #1~#50(#7 배포 제외)은 PR #51, 이후 FE·AI 요청 이슈(#52~#67) 중 계약에 걸린 것들은 같은 PR 의 후속 커밋으로 반영했다. 정본은 [`docs/API_SPEC_v0.1.md`](docs/API_SPEC_v0.1.md) **v0.3** 이고 §10 변경 이력에 무엇이 바뀌었는지 있다.
 
-> 조영탁님은 아직 조직 초대를 수락하지 않아 이슈 담당자로 배정되지 않았다. 수락하면 전부 배정한다.
+- **FE 와 맞춤:** FE(develop)의 `core/network` 가 실제로 읽는 모양 — `/api/v1` 접두사, 로그인 `isNewUser`·`expiresIn`, 목록 감싸기, 공고 상세 필드 등. 서버 쪽 대조 테스트는 `ContractSmokeIT`.
+- **AI 와 연결:** `AI_BASE_URL` 을 주면 CareerCompass-AI 를 부른다(파싱·코멘트·초안·분야 유사도). 주지 않으면 휴리스틱으로 돈다. 어느 쪽인지 기동 로그 첫머리에 `LlmGateway = ...` 로 찍힌다.
+- **테스트:** 단위 + Testcontainers 통합 테스트 156건.
+- **남은 것:** #7 AWS 배포(계정·도메인 필요), #52 성능 측정, #53 보안 점검 문서, #54 운영·종료 계획, #66 AI 초안 품질 플래그(선택), #67(확인만).
+
+## 로컬 실행
+
+```
+docker compose up --build
+```
+
+서버 http://localhost:8080/api/v1 · 헬스체크 `GET /api/v1/actuator/health` · API 문서(local/dev 전용) `/api/v1/swagger-ui.html`.
+DB만 띄우고 앱은 IDE에서 돌리려면 `docker compose up db` 후 `local` 프로파일로 실행한다.
+빌드·테스트는 `./gradlew build`(단위) / `./gradlew integrationTest`(Testcontainers, Docker 필요).
+
+### AI 서버와 같이 띄우기
+
+두 compose 가 같은 Docker 네트워크(`careercompass`)를 쓴다. AI 저장소에서 먼저 띄우고, 이 저장소를 `AI_BASE_URL` 과 함께 띄운다.
+
+```
+# CareerCompass-AI 에서 (.env 에 키가 없으면 스텁 모드로 뜬다)
+docker compose up -d --build
+# 이 저장소에서
+AI_BASE_URL=http://ai:8000 docker compose up --build
+```
+
+로그에 `LlmGateway = HttpLlmGateway — AI 서버 http://ai:8000` 이 찍히면 연결된 것이다. AI 쪽 `/health` 의 `stubMode` 로 실호출인지 본다.
+
+### 환경변수
+
+| 이름 | 필수 | 뜻 |
+| --- | --- | --- |
+| `DB_URL` · `DB_USER` · `DB_PASSWORD` | 운영 필수 | PostgreSQL. `local` 프로파일은 localhost 기본값이 있다 |
+| `JWT_SECRET` | 운영 필수 | 32바이트 이상. `local` 은 개발용 기본값 |
+| `AI_BASE_URL` | 선택 | CareerCompass-AI 주소. 비면 휴리스틱 |
+| `AI_PROMPT_VERSION` | 선택 | 기본 `v2` — AI 의 `CC_PARSE_PROMPT_VERSION` 과 맞춘다(파싱 캐시 키) |
+| `AI_TIMEOUT` · `AI_MAX_RETRIES` · `AI_DAILY_CALL_BUDGET` | 선택 | 20s · 2 · 2000 |
+| `GOOGLE_WEB_CLIENT_ID` | 운영 필수 | 구글 ID 토큰의 `aud` 검사. FE 의 `GOOGLE_WEB_CLIENT_ID` 와 같은 값 |
+| `FCM_CREDENTIALS_PATH` | 선택 | Firebase 서비스 계정 JSON 경로. 없으면 푸시는 로그로만 |
+| `SPRING_PROFILES_ACTIVE` | | `local` / `dev` / `prod` |
+
+### 앱(FE)을 이 서버에 붙이기
+
+앱은 debug 빌드에서도 **HTTPS 만** 허용한다(`usesCleartextTraffic=false`). FE 의 `local.properties` 에 `BASE_URL_DEV=https://<호스트>/api/v1/` 를 넣는다. 실서버(#7)가 서기 전에는 HTTPS 터널(예: tailnet 의 `tailscale serve --https`)로 노출한 주소를 쓴다 — IP 가 아니라 인증서의 호스트 이름으로.
 
 ## 기술 스택
 
@@ -30,6 +73,7 @@
 | 문서 | 위치 |
 | --- | --- |
 | API 스펙 v0.1 (엔드포인트 40개) | [`docs/API_SPEC_v0.1.md`](docs/API_SPEC_v0.1.md) |
+| 개인정보 처리 결정 (#48) | [`docs/privacy.md`](docs/privacy.md) |
 | 상세 기능 스펙·요구사항 명세서 (F1~F4) | 팀 문서 폴더 (교수님 제출본) |
 | ERD — PostgreSQL 16 엔티티 | [Figma 11 ERD](https://www.figma.com/design/osiio5ZAcJreMsKUqjY2QW?node-id=29-2) |
 | 시스템 아키텍처 | [Figma 12 Architecture](https://www.figma.com/design/osiio5ZAcJreMsKUqjY2QW?node-id=31-2) |

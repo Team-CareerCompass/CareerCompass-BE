@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-careercompass}
+      POSTGRES_USER: ${DB_USER:-careercompass}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-careercompass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-careercompass} -d ${DB_NAME:-careercompass}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-careercompass}
+      DB_USER: ${DB_USER:-careercompass}
+      DB_PASSWORD: ${DB_PASSWORD:-careercompass}
+      # CareerCompass-AI 를 같은 네트워크에 띄웠으면 http://ai:8000 (비우면 휴리스틱)
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+    ports:
+      - "8080:8080"
+
+volumes:
+  dbdata:
+
+# CareerCompass-AI 의 compose 와 같은 네트워크 — 서비스 이름 ai 로 부를 수 있다
+networks:
+  default:
+    name: careercompass

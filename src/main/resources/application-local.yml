@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/careercompass}
+    username: ${DB_USER:careercompass}
+    password: ${DB_PASSWORD:careercompass}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+auth:
+  jwt:
+    # 로컬 개발 전용 기본 키 — 운영은 JWT_SECRET 환경 변수 필수
+    secret: ${JWT_SECRET:local-only-secret-key-careercompass-0123456789}
+
+# 로컬에서는 수집/LLM 지표 확인용으로 metrics 도 연다 (#49). 운영은 health 만.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics

@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: careercompass-be
+  datasource:
+    url: ${DB_URL:}
+    username: ${DB_USER:}
+    password: ${DB_PASSWORD:}
+  jpa:
+    # 스키마는 Flyway 가 소유한다 — 어긋나면 기동 실패 (issue #2)
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+# CareerCompass-AI 연동 (#35 #64). AI_BASE_URL 이 비어 있으면 휴리스틱 게이트웨이가 돌고 기동 로그에 그렇게 찍힌다.
+# 같은 compose 네트워크면 http://ai:8000. prompt-version 은 BE 파싱 캐시 키 — AI 의 CC_PARSE_PROMPT_VERSION 과 맞춘다.
+app:
+  ai:
+    base-url: ${AI_BASE_URL:}
+    timeout: ${AI_TIMEOUT:20s}
+    max-retries: ${AI_MAX_RETRIES:2}
+    prompt-version: ${AI_PROMPT_VERSION:v2}
+    daily-call-budget: ${AI_DAILY_CALL_BUDGET:2000}
+
+auth:
+  jwt:
+    secret: ${JWT_SECRET:}
+    access-ttl: 30m
+    refresh-ttl: 14d
+    refresh-grace: 30s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# 운영 기본값: API 문서 비공개 (local/dev 프로파일에서만 켠다 — issue #8)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+server:
+  shutdown: graceful
+  servlet:
+    # FE 는 BASE_URL=<host>/api/v1/ 아래 상대 경로를 부른다 (FE core/network, ApiWireContractSmokeTest).
+    # 헬스체크도 이 아래다: GET /api/v1/actuator/health
+    context-path: /api/v1
